@@ -1,0 +1,287 @@
+<html>
+  <head>
+    <script src="./d3.min.js"></script>
+
+    <style>
+      :root {
+        --color-116To127: rgb(215, 48, 39);
+        --color-105To116: rgb(244, 109, 67);
+        --color-094To105: rgb(253, 174, 97);
+        --color-083To094: rgb(254, 224, 144);
+        --color-072To083: rgb(255, 255, 191);
+        --color-061To072: rgb(224, 243, 248);
+        --color-050To061: rgb(171, 217, 233);
+        --color-039To050: rgb(116, 173, 209);
+        --color-028To039: rgb(69, 117, 180);
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-weight: 600;
+      }
+
+      .svg {
+        background-color: white;
+        position: relative;
+      }
+      .svg:hover #title {
+        border: 1px black solid;
+      }
+      .title {
+        padding: 10px 0;
+        text-align: center;
+      }
+      #description {
+        text-align: center;
+        font-size: 22px;
+      }
+
+      .content {
+        padding: 20px;
+        box-shadow: 1px 1px 10px black;
+      }
+      #tooltip {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 5px;
+        background-color: rgb(143, 160, 197);
+        text-align: center;
+        transition: opacity 200ms;
+        position: absolute;
+        box-shadow: 1px 1px 10px black;
+        font-size: 16px;
+        font-weight: 600;
+        opacity: 0;
+      }
+      #tooltip p {
+        padding-bottom: 3px;
+      }
+      #legend {
+        display: flex;
+        flex-direction: column;
+        padding-left: 70px;
+        padding-bottom: 20px;
+        font-size: 14px;
+        font-weight: 400;
+      }
+      #legend > div {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+
+      .cell {
+        stroke-width: 2px;
+      }
+      .cell:hover {
+        stroke: black;
+      }
+      .legendRect {
+        stroke-width: 1px;
+        stroke: black;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="content" id="container">
+      <h1 id="title" class="title">Monthly Global Land-Surface Temperature</h1>
+      <p id="description">1753 - 2015: base temperature 8.66℃</p>
+
+      <script>
+        const months = [
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+        ];
+        const getColor = (variance) => {
+          if (5 > variance && variance >= 3.9) return "var(--color-039To050)";
+          if (6.1 > variance && variance >= 5) return "var(--color-050To061)";
+          if (7.2 > variance && variance >= 6.1) return "var(--color-061To072)";
+          if (8.3 > variance && variance >= 7.2) return "var(--color-072To083)";
+          if (9.4 > variance && variance >= 8.3) return "var(--color-083To094)";
+          if (10.6 > variance && variance >= 9.4)
+            return "var(--color-094To105)";
+          if (11.8 > variance && variance >= 10.7)
+            return "var(--color-105To116)";
+          if (variance >= 11.8) return "var(--color-116To127)";
+          return "var( --color-028To039)"; /*if (3.9 > variance >= 2.8)*/
+        };
+        function onMouseOver() {
+          const element = event.target;
+          if (element.tagName == "rect") {
+            const year = element.getAttribute("data-year");
+            const month = element.getAttribute("data-month");
+            const temp = element.getAttribute("data-temp");
+            const variance = element.getAttribute("data-variance");
+
+            tooltip.setAttribute("data-year", year);
+            tooltip.innerHTML = `<p>${
+              year + " - " + months[+month]
+            }</p><p>${(+temp).toFixed(1)}℃</p><p>${(+variance).toFixed(
+              1
+            )}℃</p>`;
+
+            tooltip.style.left = event.clientX;
+            tooltip.style.top = event.clientY;
+
+            tooltip.style.opacity = "0.9";
+          } else {
+            tooltip.style.opacity = "0";
+          }
+        }
+
+        (async () => {
+          const responce = await fetch(
+            "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json"
+          );
+          if (responce.ok) {
+            let data = await responce.json();
+            const { baseTemperature, monthlyVariance } = data;
+
+            const w = 1048;
+            const h = 552;
+            const padding = 60;
+
+            const xMin = 1753;
+            const xMax = 2015;
+
+            const xScale = d3
+              .scaleTime()
+              .domain([xMin, xMax])
+              .range([padding, w - padding]);
+
+            const yMin = 0.5;
+            const yMax = 12.5;
+            const yScale = d3
+              .scaleLinear()
+              .domain([yMin, yMax])
+              .range([padding, h - padding]);
+
+            const svg = d3
+              .select("div")
+              .append("svg")
+              .attr("width", w)
+              .attr("height", h)
+              .attr("class", "svg")
+              .attr("id", "svg")
+              .attr("onmouseover", "onMouseOver()");
+
+            d3.select("div")
+              .append("div")
+              .attr("id", "tooltip")
+              .style("opacity", "0");
+
+            const xAxis = d3.axisBottom(xScale).tickFormat((year) => {
+              var date = new Date(0);
+              date.setFullYear(year);
+              return d3.utcFormat("%Y")(date);
+            });
+            const yAxis = d3.axisLeft(yScale).tickFormat((month) => {
+              var date = new Date(0);
+              date.setUTCMonth(month - 1);
+              return d3.utcFormat("%B")(date);
+            });
+
+            svg
+              .append("g")
+              .attr("id", "x-axis")
+              .attr("transform", "translate(0," + (h - padding) + ")")
+              .call(xAxis);
+
+            svg
+              .append("g")
+              .attr("id", "y-axis")
+              .attr("transform", "translate(" + padding + ",0)")
+              .call(yAxis);
+
+            svg
+              .selectAll("rect")
+              .data(monthlyVariance)
+              .enter()
+              .append("rect")
+              .attr("data-month", (d) => d.month - 1)
+              .attr("data-year", (d) => d.year)
+              .attr("data-temp", (d) => baseTemperature + d.variance)
+              .attr("data-variance", (d) => d.variance)
+              .attr("x", (d) => xScale(d.year))
+              .attr("y", (d) => yScale(d.month) - 36 / 2)
+              .attr("width", 4)
+              .attr("height", 36)
+              .attr("fill", (d) => getColor(baseTemperature + d.variance))
+              .attr("class", "cell");
+
+            const inervalValues = [
+              2.8, 3.9, 5, 6.1, 7.2, 8.3, 9.4, 10.5, 11.6, 12.7,
+            ];
+            const legendLen = inervalValues.length;
+            const xTempMin = 1.7;
+            const xTempMax = 13.8;
+
+            const legendRectWidth = 30;
+            const legendWidth = legendRectWidth * (legendLen + 1);
+            const legendHeight = legendRectWidth + 20;
+
+            const xLegendScale = d3
+              .scaleLinear()
+              .domain([xTempMin, xTempMax])
+              .range([0, legendWidth]);
+
+            const legendSvg = d3
+              .select("div")
+              .append("div")
+              .attr("id", "legend")
+              .append("svg")
+              .attr("width", legendWidth)
+              .attr("height", legendHeight)
+              .attr("class", "legendSvg");
+
+            const xLegendAxis = d3
+              .axisBottom(xLegendScale)
+              .tickValues(inervalValues)
+              .tickSize(10, 0)
+              .tickFormat(d3.format(".1f"));
+
+            legendSvg
+              .selectAll("rect")
+              .data(inervalValues.slice(0, inervalValues.length - 1))
+              .enter()
+              .append("rect")
+              .attr("x", (d, i) => xLegendScale(d))
+              .attr("y", 0)
+              .attr("width", legendRectWidth)
+              .attr("height", legendRectWidth)
+              .attr("class", "legendRect")
+              .attr("fill", (d) => getColor(d));
+
+            legendSvg
+              .append("g")
+              .attr("id", "x-Laxis")
+              .attr("transform", "translate(0," + legendRectWidth + ")")
+              .call(xLegendAxis);
+          }
+        })();
+      </script>
+      <script src="https://cdn.freecodecamp.org/testable-projects-fcc/v1/bundle.js"></script>
+    </div>
+  </body>
+</html>
